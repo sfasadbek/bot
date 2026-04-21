@@ -254,15 +254,24 @@
 
     <div id="admin-panel" class="panel" style="border-top-color: var(--danger);">
         <h3 style="margin-bottom: 15px;">Admin Boshqaruvi</h3>
+        
         <div style="background: var(--card); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
             <h4 style="font-size: 14px; margin-bottom: 10px;">Foydalanuvchilar Ro'yxati</h4>
-            <div id="admin-user-list">Yuklanmoqda...</div>
+            <div id="admin-user-list" style="max-height: 100px; overflow-y: auto;">Yuklanmoqda...</div>
         </div>
+
+        <div style="background: var(--card); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+            <h4 style="font-size: 14px; margin-bottom: 10px;">Mavjud Missiyalar (Bekor qilish)</h4>
+            <div id="admin-mission-list" style="max-height: 150px; overflow-y: auto;"></div>
+        </div>
+
         <h4>Yangi Missiya Qo'shish</h4>
         <input type="text" id="m-title" class="admin-input" placeholder="Missiya nomi">
         <input type="number" id="m-reward" class="admin-input" placeholder="Mukofot (tanga)">
         <input type="text" id="m-link" class="admin-input" placeholder="Kanal linki">
-        <button class="btn-action" style="width: 100%; margin-top: 10px; background: var(--danger);" onclick="addNewMission()">Qo'shish</button>
+        <input type="number" id="m-limit" class="admin-input" placeholder="Odam limiti (masalan: 100)">
+        
+        <button class="btn-action" style="width: 100%; margin-top: 10px; background: var(--accent);" onclick="addNewMission()">Qo'shish</button>
         <button class="btn-action" style="width: 100%; margin-top: 10px; background: #555;" onclick="switchTab('main')">Yopish</button>
     </div>
 
@@ -327,10 +336,26 @@
             }
         });
 
+        // Missiyalarni real-time kuzatish
         database.ref('missions').on('value', (s) => {
             missions = [];
             const data = s.val();
-            for(let id in data) missions.push({id, ...data[id]});
+            const adminList = document.getElementById('admin-mission-list');
+            if(adminList) adminList.innerHTML = "";
+
+            for(let id in data) {
+                const m = {id, ...data[id]};
+                missions.push(m);
+                
+                // Admin uchun missiya ro'yxati va o'chirish tugmasi
+                if(user.id === ADMIN_ID && adminList) {
+                    adminList.innerHTML += `
+                        <div class="user-list-item">
+                            <span>${m.title} (${m.count || 0}/${m.limit || '∞'})</span>
+                            <button onclick="deleteMission('${m.id}')" style="background:var(--danger); color:white; border:none; padding:2px 8px; border-radius:5px; font-size:10px;">O'chirish</button>
+                        </div>`;
+                }
+            }
             renderMissions();
         });
 
@@ -356,34 +381,23 @@
         }
     }
 
-    // Wallet Connect - Yangilangan logika
     function connectWallet() {
         if (isWalletConnected) {
-            tg.showPopup({
-                title: 'Hamyon',
-                message: 'Hamyoningiz allaqachon ulangan.',
-                buttons: [{text: 'Yopish', type: 'cancel'}]
-            });
+            tg.showPopup({ title: 'Hamyon', message: 'Hamyoningiz allaqachon ulangan.', buttons: [{text: 'Yopish', type: 'cancel'}] });
             return;
         }
-
         tg.showConfirm("Hamyoningizni ushbu botga ulamoqchimisiz?", function(confirmed) {
             if (confirmed) {
-                // Telegram Wallet ilovasini ochish va so'rov yuborish
                 tg.openTelegramLink("https://t.me/wallet/start?startapp=attach");
-                
-                // Ulangani haqida belgi qo'yish
                 isWalletConnected = true;
                 localStorage.setItem('h_wallet_connected', 'true');
                 document.getElementById('wallet-btn').innerText = "Ulangan ✅";
                 document.getElementById('wallet-btn').style.background = "#28a745";
-                
                 tg.HapticFeedback.notificationOccurred('success');
             }
         });
     }
 
-    // UI yuklanganda hamyon holatini tekshirish
     if (isWalletConnected) {
         document.getElementById('wallet-btn').innerText = "Ulangan ✅";
         document.getElementById('wallet-btn').style.background = "#28a745";
@@ -395,11 +409,7 @@
         try {
             const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChatMember?chat_id=${chatId}&user_id=${userId}`);
             const d = await r.json();
-            if(d.ok) {
-                const s = d.result.status;
-                return (s === 'member' || s === 'administrator' || s === 'creator');
-            }
-            return false;
+            return (d.ok && ['member', 'administrator', 'creator'].includes(d.result.status));
         } catch(e) { return false; }
     }
 
@@ -408,6 +418,8 @@
         container.innerHTML = "";
         missions.forEach(m => {
             const isDone = userCompletedMissions.includes(m.id);
+            const isFull = m.limit && (m.count || 0) >= parseInt(m.limit);
+            
             const item = document.createElement('div');
             item.className = 'item-card';
             item.innerHTML = `
@@ -415,9 +427,11 @@
                     <div>
                         <div>${m.title}</div>
                         <small style="color:var(--primary)">+${parseInt(m.reward).toLocaleString()} tanga</small>
+                        <br><small style="color:#888">Limit: ${m.count || 0}/${m.limit || '∞'}</small>
                     </div>
                     <div id="m-btn-area-${m.id}" style="display:flex; gap:5px;">
                         ${isDone ? '<button class="btn-action" style="background:#555">Bajarildi ✅</button>' : 
+                          isFull ? '<button class="btn-action" style="background:var(--danger)">Limit tugagan ❌</button>' :
                         `<button class="btn-action" onclick="tg.openTelegramLink('${m.link}')">Bajarish</button>
                          <button class="btn-action" style="background:var(--ton)" onclick="verifyMission('${m.id}', '${m.link}', ${m.reward})">Tekshirish 🔎</button>`}
                     </div>
@@ -429,21 +443,33 @@
 
     async function verifyMission(id, link, reward) {
         const user = tg.initDataUnsafe.user;
-        if(!user) return alert("Xatolik!");
+        if(!user) return;
         
+        // Firebase orqali limitni qayta tekshirish
+        const mRef = database.ref('missions/' + id);
+        const snapshot = await mRef.get();
+        const mData = snapshot.val();
+        
+        if(!mData) return alert("Ushbu missiya bekor qilingan!");
+        if(mData.limit && (mData.count || 0) >= parseInt(mData.limit)) return alert("Limit to'lgan!");
+
         const isSubscribed = await checkSub(user.id, link);
         if(isSubscribed) {
             if(!userCompletedMissions.includes(id)) {
                 userCompletedMissions.push(id);
                 balance += parseInt(reward);
                 localStorage.setItem('h_comp_missions', JSON.stringify(userCompletedMissions));
+                
+                // Countni oshirish
+                mRef.child('count').transaction(c => (c || 0) + 1);
+                
                 updateUI();
                 renderMissions();
                 tg.HapticFeedback.notificationOccurred('success');
                 alert("Tabriklaymiz! Vazifa bajarildi.");
             }
         } else {
-            alert("Siz hali kanalga a'zo emassiz! Iltimos, kanalga qo'shiling.");
+            alert("Siz hali kanalga a'zo emassiz!");
             tg.HapticFeedback.notificationOccurred('error');
         }
     }
@@ -452,12 +478,24 @@
         const title = document.getElementById('m-title').value;
         const reward = document.getElementById('m-reward').value;
         const link = document.getElementById('m-link').value;
+        const limit = document.getElementById('m-limit').value || null;
+
         if(title && reward && link) {
-            database.ref('missions').push({title, reward, link});
+            database.ref('missions').push({
+                title, reward, link, limit, count: 0
+            });
             alert("Missiya qo'shildi!");
             document.getElementById('m-title').value = "";
             document.getElementById('m-reward').value = "";
             document.getElementById('m-link').value = "";
+            document.getElementById('m-limit').value = "";
+        }
+    }
+
+    function deleteMission(id) {
+        if(confirm("Ushbu missiyani bekor qilmoqchimisiz?")) {
+            database.ref('missions/' + id).remove();
+            alert("Missiya o'chirildi!");
         }
     }
 
@@ -494,40 +532,6 @@
         if (tab !== 'main') document.getElementById(tab + '-panel').style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         if(document.getElementById('nav-' + tab)) document.getElementById('nav-' + tab).classList.add('active');
-        if(tab === 'mission') renderMissions();
-    }
-
-    function buyMarketCard(type, basePrice, profit, cardId) {
-        let card = marketCards[type];
-        if (balance >= card.price) {
-            balance -= card.price;
-            profitPerHour += card.profitAdd;
-            card.lvl += 1;
-            card.price = Math.floor(card.price * 1.6);
-            updateUI(); saveToLocal();
-        } else {
-            const el = document.getElementById(cardId);
-            el.classList.add('shake-error');
-            setTimeout(() => el.classList.remove('shake-error'), 400);
-        }
-    }
-
-    function buyBooster(cardId) {
-        if (balance >= prices.booster) {
-            balance -= prices.booster;
-            profitPerHour += 100;
-            prices.booster = Math.floor(prices.booster * 1.8);
-            updateUI(); saveToLocal();
-        }
-    }
-
-    function buyClickBoost(cardId) {
-        if (balance >= prices.click) {
-            balance -= prices.click;
-            clickPower += 1;
-            prices.click = Math.floor(prices.click * 2.2);
-            updateUI(); saveToLocal();
-        }
     }
 
     function updateUI() {

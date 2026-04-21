@@ -213,7 +213,7 @@
                 <div class="market-profit">Profit/h: <span style="color:var(--accent)">+500</span></div>
                 <div class="market-footer">
                     <span style="font-size:10px">Lvl <span id="lvl-fan">0</span></span>
-                    <button class="btn-action" onclick="buyMarketCard('fan', 1000, 500, 'card-fan')">💰 <span id="price-fan">1000</span></button>
+                    <button class="btn-action" onclick="buyMarketCard('fan', 'card-fan')">💰 <span id="price-fan">1000</span></button>
                 </div>
             </div>
             <div class="market-card" id="card-stake">
@@ -222,7 +222,7 @@
                 <div class="market-profit">Profit/h: <span style="color:var(--accent)">+1.2k</span></div>
                 <div class="market-footer">
                     <span style="font-size:10px">Lvl <span id="lvl-stake">0</span></span>
-                    <button class="btn-action" onclick="buyMarketCard('stake', 5000, 1200, 'card-stake')">💰 <span id="price-stake">5000</span></button>
+                    <button class="btn-action" onclick="buyMarketCard('stake', 'card-stake')">💰 <span id="price-stake">5000</span></button>
                 </div>
             </div>
         </div>
@@ -319,11 +319,84 @@
     let userCompletedMissions = JSON.parse(localStorage.getItem('h_comp_missions')) || [];
     let isWalletConnected = localStorage.getItem('h_wallet_connected') === 'true';
 
+    // SAVING & UI
+    function saveToLocal() {
+        localStorage.setItem('h_balance', balance);
+        localStorage.setItem('h_pps', profitPerHour);
+        localStorage.setItem('h_click', clickPower);
+        localStorage.setItem('h_prices', JSON.stringify(prices));
+        localStorage.setItem('h_market', JSON.stringify(marketCards));
+        localStorage.setItem('h_comp_missions', JSON.stringify(userCompletedMissions));
+    }
+
+    function updateUI() {
+        document.getElementById('balance').innerText = Math.floor(balance).toLocaleString();
+        document.getElementById('pps').innerText = Math.floor(profitPerHour).toLocaleString();
+        document.getElementById('booster-price').innerText = prices.booster.toLocaleString();
+        document.getElementById('click-price').innerText = prices.click.toLocaleString();
+        document.getElementById('lvl-fan').innerText = marketCards.fan.lvl;
+        document.getElementById('price-fan').innerText = marketCards.fan.price.toLocaleString();
+        document.getElementById('lvl-stake').innerText = marketCards.stake.lvl;
+        document.getElementById('price-stake').innerText = marketCards.stake.price.toLocaleString();
+    }
+
+    // PURCHASE FUNCTIONS
+    function buyMarketCard(type, cardId) {
+        let card = marketCards[type];
+        if (balance >= card.price) {
+            balance -= card.price;
+            profitPerHour += card.profitAdd;
+            card.lvl += 1;
+            card.price = Math.floor(card.price * 2.5); // Har gal narx 2.5 barobar oshadi
+            
+            updateUI();
+            saveToLocal();
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        } else {
+            const el = document.getElementById(cardId);
+            el.classList.add('shake-error');
+            setTimeout(() => el.classList.remove('shake-error'), 400);
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+        }
+    }
+
+    function buyBooster(cardId) {
+        if (balance >= prices.booster) {
+            balance -= prices.booster;
+            profitPerHour += 100;
+            prices.booster = Math.floor(prices.booster * 1.8);
+            updateUI();
+            saveToLocal();
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        } else {
+            const el = document.getElementById(cardId);
+            el.classList.add('shake-error');
+            setTimeout(() => el.classList.remove('shake-error'), 400);
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+        }
+    }
+
+    function buyClickBoost(cardId) {
+        if (balance >= prices.click) {
+            balance -= prices.click;
+            clickPower += 1;
+            prices.click = Math.floor(prices.click * 2.2);
+            updateUI();
+            saveToLocal();
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        } else {
+            const el = document.getElementById(cardId);
+            el.classList.add('shake-error');
+            setTimeout(() => el.classList.remove('shake-error'), 400);
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+        }
+    }
+
+    // TELEGRAM & FIREBASE LOGIC
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
         const user = tg.initDataUnsafe.user;
         document.getElementById('user-name').innerText = user.first_name;
         document.getElementById('user-letter').innerText = user.first_name.charAt(0);
-        
         if (user.id === ADMIN_ID) document.getElementById('admin-banner').style.display = 'block';
 
         const userRef = database.ref('users/' + user.id);
@@ -336,71 +409,36 @@
             }
         });
 
-        // Missiyalarni real-time kuzatish
         database.ref('missions').on('value', (s) => {
             missions = [];
             const data = s.val();
             const adminList = document.getElementById('admin-mission-list');
             if(adminList) adminList.innerHTML = "";
-
             for(let id in data) {
                 const m = {id, ...data[id]};
                 missions.push(m);
-                
-                // Admin uchun missiya ro'yxati va o'chirish tugmasi
                 if(user.id === ADMIN_ID && adminList) {
-                    adminList.innerHTML += `
-                        <div class="user-list-item">
-                            <span>${m.title} (${m.count || 0}/${m.limit || '∞'})</span>
-                            <button onclick="deleteMission('${m.id}')" style="background:var(--danger); color:white; border:none; padding:2px 8px; border-radius:5px; font-size:10px;">O'chirish</button>
-                        </div>`;
+                    adminList.innerHTML += `<div class="user-list-item"><span>${m.title}</span><button onclick="deleteMission('${m.id}')" style="background:var(--danger); border:none; color:white; padding:2px 5px;">X</button></div>`;
                 }
             }
             renderMissions();
         });
 
         setInterval(() => {
-            userRef.update({
-                username: user.username || user.first_name,
-                balance: balance,
-                pps: profitPerHour,
-                lastSeen: new Date().toISOString()
-            });
+            userRef.update({ username: user.username || user.first_name, balance: balance, pps: profitPerHour, lastSeen: new Date().toISOString() });
         }, 10000);
-
-        if (user.id === ADMIN_ID) {
-            database.ref('users').on('value', (s) => {
-                const list = document.getElementById('admin-user-list');
-                list.innerHTML = "";
-                const users = s.val();
-                for(let id in users) {
-                    const u = users[id];
-                    list.innerHTML += `<div class="user-list-item"><span>${u.username}</span><b>${Math.floor(u.balance).toLocaleString()}</b></div>`;
-                }
-            });
-        }
     }
 
     function connectWallet() {
-        if (isWalletConnected) {
-            tg.showPopup({ title: 'Hamyon', message: 'Hamyoningiz allaqachon ulangan.', buttons: [{text: 'Yopish', type: 'cancel'}] });
-            return;
-        }
-        tg.showConfirm("Hamyoningizni ushbu botga ulamoqchimisiz?", function(confirmed) {
-            if (confirmed) {
-                tg.openTelegramLink("https://t.me/wallet/start?startapp=attach");
+        if (isWalletConnected) return;
+        tg.showConfirm("Hamyoningizni ulamoqchimisiz?", (c) => {
+            if(c) {
                 isWalletConnected = true;
                 localStorage.setItem('h_wallet_connected', 'true');
                 document.getElementById('wallet-btn').innerText = "Ulangan ✅";
-                document.getElementById('wallet-btn').style.background = "#28a745";
-                tg.HapticFeedback.notificationOccurred('success');
+                document.getElementById('wallet-btn').style.background = "var(--accent)";
             }
         });
-    }
-
-    if (isWalletConnected) {
-        document.getElementById('wallet-btn').innerText = "Ulangan ✅";
-        document.getElementById('wallet-btn').style.background = "#28a745";
     }
 
     async function checkSub(userId, channelLink) {
@@ -418,97 +456,37 @@
         container.innerHTML = "";
         missions.forEach(m => {
             const isDone = userCompletedMissions.includes(m.id);
-            const isFull = m.limit && (m.count || 0) >= parseInt(m.limit);
-            
-            const item = document.createElement('div');
-            item.className = 'item-card';
-            item.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div>${m.title}</div>
-                        <small style="color:var(--primary)">+${parseInt(m.reward).toLocaleString()} tanga</small>
-                        <br><small style="color:#888">Limit: ${m.count || 0}/${m.limit || '∞'}</small>
-                    </div>
-                    <div id="m-btn-area-${m.id}" style="display:flex; gap:5px;">
-                        ${isDone ? '<button class="btn-action" style="background:#555">Bajarildi ✅</button>' : 
-                          isFull ? '<button class="btn-action" style="background:var(--danger)">Limit tugagan ❌</button>' :
-                        `<button class="btn-action" onclick="tg.openTelegramLink('${m.link}')">Bajarish</button>
-                         <button class="btn-action" style="background:var(--ton)" onclick="verifyMission('${m.id}', '${m.link}', ${m.reward})">Tekshirish 🔎</button>`}
-                    </div>
-                </div>
-            `;
-            container.appendChild(item);
+            container.innerHTML += `<div class="item-card"><div style="display:flex; justify-content:space-between;"><div>${m.title}<br><small>+${m.reward}</small></div><div>${isDone ? '✅' : `<button class="btn-action" onclick="verifyMission('${m.id}', '${m.link}', ${m.reward})">Tekshirish</button>`}</div></div></div>`;
         });
     }
 
     async function verifyMission(id, link, reward) {
         const user = tg.initDataUnsafe.user;
-        if(!user) return;
-        
-        // Firebase orqali limitni qayta tekshirish
-        const mRef = database.ref('missions/' + id);
-        const snapshot = await mRef.get();
-        const mData = snapshot.val();
-        
-        if(!mData) return alert("Ushbu missiya bekor qilingan!");
-        if(mData.limit && (mData.count || 0) >= parseInt(mData.limit)) return alert("Limit to'lgan!");
-
-        const isSubscribed = await checkSub(user.id, link);
-        if(isSubscribed) {
+        if(await checkSub(user.id, link)) {
             if(!userCompletedMissions.includes(id)) {
                 userCompletedMissions.push(id);
                 balance += parseInt(reward);
-                localStorage.setItem('h_comp_missions', JSON.stringify(userCompletedMissions));
-                
-                // Countni oshirish
-                mRef.child('count').transaction(c => (c || 0) + 1);
-                
+                saveToLocal();
                 updateUI();
                 renderMissions();
-                tg.HapticFeedback.notificationOccurred('success');
-                alert("Tabriklaymiz! Vazifa bajarildi.");
+                alert("Bajarildi!");
             }
-        } else {
-            alert("Siz hali kanalga a'zo emassiz!");
-            tg.HapticFeedback.notificationOccurred('error');
-        }
+        } else { alert("Kanalga a'zo bo'ling!"); }
     }
 
     function addNewMission() {
         const title = document.getElementById('m-title').value;
         const reward = document.getElementById('m-reward').value;
         const link = document.getElementById('m-link').value;
-        const limit = document.getElementById('m-limit').value || null;
-
         if(title && reward && link) {
-            database.ref('missions').push({
-                title, reward, link, limit, count: 0
-            });
-            alert("Missiya qo'shildi!");
-            document.getElementById('m-title').value = "";
-            document.getElementById('m-reward').value = "";
-            document.getElementById('m-link').value = "";
-            document.getElementById('m-limit').value = "";
+            database.ref('missions').push({ title, reward, link, count: 0 });
+            alert("Qo'shildi!");
         }
     }
 
-    function deleteMission(id) {
-        if(confirm("Ushbu missiyani bekor qilmoqchimisiz?")) {
-            database.ref('missions/' + id).remove();
-            alert("Missiya o'chirildi!");
-        }
-    }
+    function deleteMission(id) { database.ref('missions/' + id).remove(); }
 
-    const balanceDisplay = document.getElementById('balance');
-
-    function saveToLocal() {
-        localStorage.setItem('h_balance', balance);
-        localStorage.setItem('h_pps', profitPerHour);
-        localStorage.setItem('h_click', clickPower);
-        localStorage.setItem('h_prices', JSON.stringify(prices));
-        localStorage.setItem('h_market', JSON.stringify(marketCards));
-    }
-
+    // CLICK LOGIC
     document.getElementById('coin').addEventListener('touchstart', function(e) {
         e.preventDefault();
         for (let i = 0; i < e.changedTouches.length; i++) {
@@ -532,17 +510,6 @@
         if (tab !== 'main') document.getElementById(tab + '-panel').style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         if(document.getElementById('nav-' + tab)) document.getElementById('nav-' + tab).classList.add('active');
-    }
-
-    function updateUI() {
-        balanceDisplay.innerText = Math.floor(balance).toLocaleString();
-        document.getElementById('pps').innerText = Math.floor(profitPerHour).toLocaleString();
-        document.getElementById('booster-price').innerText = prices.booster.toLocaleString();
-        document.getElementById('click-price').innerText = prices.click.toLocaleString();
-        document.getElementById('lvl-fan').innerText = marketCards.fan.lvl;
-        document.getElementById('price-fan').innerText = marketCards.fan.price.toLocaleString();
-        document.getElementById('lvl-stake').innerText = marketCards.stake.lvl;
-        document.getElementById('price-stake').innerText = marketCards.stake.price.toLocaleString();
     }
 
     setInterval(() => {

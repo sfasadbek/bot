@@ -281,6 +281,8 @@
 <script>
     const tg = window.Telegram.WebApp;
     const ADMIN_ID = 6741153061;
+    // Bot tokenni shu yerga yozing (Haqiqiy tekshirish uchun)
+    const BOT_TOKEN = "8691073737:AAG2ZXLNZSXUEhiWwoQycnl9l0fhduGIXIo";
 
     // --- FIREBASE CONFIG ---
     const firebaseConfig = {
@@ -357,6 +359,21 @@
         }
     }
 
+    // --- KANALGA A'ZOLIKNI TEKSHIRISH FUNKSIYALARI ---
+    async function checkSub(userId, channelLink) {
+        let chatId = channelLink.replace('https://t.me/', '@').split('/')[0];
+        if (!chatId.startsWith('@')) chatId = '@' + chatId;
+        try {
+            const r = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getChatMember?chat_id=${chatId}&user_id=${userId}`);
+            const d = await r.json();
+            if(d.ok) {
+                const s = d.result.status;
+                return (s === 'member' || s === 'administrator' || s === 'creator');
+            }
+            return false;
+        } catch(e) { return false; }
+    }
+
     function renderMissions() {
         const container = document.getElementById('missions-container');
         container.innerHTML = "";
@@ -370,19 +387,29 @@
                         <div>${m.title}</div>
                         <small style="color:var(--primary)">+${parseInt(m.reward).toLocaleString()} tanga</small>
                     </div>
-                    <button class="btn-action" style="${isDone ? 'background:#555' : ''}" 
-                        onclick="${isDone ? '' : `doMission('${m.id}', '${m.link}', ${m.reward})`}">
-                        ${isDone ? 'Bajarildi ✅' : 'Bajarish'}
-                    </button>
+                    <div id="m-btn-area-${m.id}">
+                        ${isDone ? '<button class="btn-action" style="background:#555">Bajarildi ✅</button>' : 
+                        `<button class="btn-action" onclick="startMission('${m.id}', '${m.link}')">Bajarish</button>`}
+                    </div>
                 </div>
             `;
             container.appendChild(item);
         });
     }
 
-    function doMission(id, link, reward) {
-        tg.openLink(link);
-        setTimeout(() => {
+    function startMission(id, link) {
+        tg.openTelegramLink(link);
+        const area = document.getElementById(`m-btn-area-${id}`);
+        const m = missions.find(x => x.id === id);
+        area.innerHTML = `<button class="btn-action" style="background:var(--ton)" onclick="verifyMission('${id}', '${link}', ${m.reward})">Tekshirish 🔎</button>`;
+    }
+
+    async function verifyMission(id, link, reward) {
+        const user = tg.initDataUnsafe.user;
+        if(!user) return alert("Xatolik!");
+        
+        const isSubscribed = await checkSub(user.id, link);
+        if(isSubscribed) {
             if(!userCompletedMissions.includes(id)) {
                 userCompletedMissions.push(id);
                 balance += parseInt(reward);
@@ -391,7 +418,10 @@
                 renderMissions();
                 tg.HapticFeedback.notificationOccurred('success');
             }
-        }, 2000);
+        } else {
+            alert("Siz hali kanalga a'zo emassiz!");
+            tg.HapticFeedback.notificationOccurred('error');
+        }
     }
 
     function addNewMission() {

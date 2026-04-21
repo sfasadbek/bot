@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hamster Clicker Pro</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg: #0b141d;
+            --card: #1c2530;
+            --primary: #f3ba2f;
+            --white: #ffffff;
+            --accent: #28a745;
+            --ton: #0088cc;
+            --danger: #e74c3c;
+        }
+
+        * {
+            margin: 0; padding: 0; box-sizing: border-box;
+            -webkit-user-select: none; 
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            outline: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--white);
+            font-family: 'Segoe UI', sans-serif;
+            display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+            overscroll-behavior-y: contain; 
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        .shake-error {
+            animation: shake 0.2s ease-in-out 0s 2;
+            border: 1px solid var(--danger) !important;
+        }
+
+        .admin-banner {
+            background: var(--danger);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 1001;
+            display: none; /* Faqat admin kirganda chiqadi */
+        }
+
+        .user-header {
+            padding: 15px; display: flex; align-items: center; justify-content: space-between;
+            background: rgba(28, 37, 48, 0.8); border-bottom: 1px solid #2d3844;
+        }
+
+        .user-info { display: flex; align-items: center; gap: 10px; }
+
+        .user-avatar {
+            width: 35px; height: 35px; background: var(--primary);
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; color: #000; font-weight: bold;
+        }
+
+        .wallet-btn {
+            background: var(--ton); color: white; border: none;
+            padding: 5px 12px; border-radius: 20px; font-size: 12px;
+            cursor: pointer; font-weight: bold;
+        }
+
+        .main-content {
+            flex: 1; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; padding-bottom: 80px;
+        }
+
+        .score-value {
+            font-size: 42px; font-weight: 800; color: var(--primary);
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px rgba(243, 186, 47, 0.3);
+        }
+
+        .profit-text { font-size: 14px; color: var(--accent); margin-bottom: 20px; }
+
+        .coin-area {
+            position: relative; display: flex; justify-content: center;
+            align-items: center; height: 200px;
+            width: 100%;
+        }
+
+        #coin {
+            width: 170px; height: 170px;
+            background: linear-gradient(135deg, #f3ba2f, #ffdb4d, #b8860b);
+            border-radius: 50%; cursor: pointer;
+            box-shadow: 0 8px 0 #8b6508, 0 15px 30px rgba(0,0,0,0.5);
+            display: flex; justify-content: center; align-items: center;
+            transition: transform 0.1s; border: 6px solid #ffd700;
+            touch-action: none;
+        }
+
+        #coin::after { content: '₿'; font-size: 60px; color: rgba(0,0,0,0.2); font-weight: bold; }
+        #coin:active { transform: translateY(4px) scale(0.96); box-shadow: 0 4px 0 #8b6508; }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; width: 100%; height: 70px;
+            background: var(--card); border-top: 2px solid #2d3844;
+            display: flex; justify-content: space-around; align-items: center;
+            z-index: 100;
+        }
+
+        .nav-item {
+            display: flex; flex-direction: column; align-items: center;
+            color: #888; font-size: 12px; cursor: pointer;
+        }
+
+        .nav-item.active { color: var(--primary); }
+        .nav-icon { font-size: 20px; margin-bottom: 4px; }
+
+        .panel {
+            position: fixed; bottom: 70px; width: 100%; max-height: 65vh;
+            background: #141b24; border-radius: 20px 20px 0 0;
+            padding: 20px; overflow-y: auto; display: none; 
+            border-top: 3px solid var(--primary);
+            z-index: 999;
+        }
+
+        .item-card, .market-card {
+            background: var(--card); padding: 15px; border-radius: 12px;
+            margin-bottom: 10px; border: 1px solid transparent;
+            transition: border 0.2s;
+        }
+
+        .user-list-item {
+            display: flex; justify-content: space-between; padding: 10px;
+            border-bottom: 1px solid #333; font-size: 13px;
+        }
+
+        .market-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;
+        }
+        .market-card {
+            display: flex; flex-direction: column; gap: 8px; margin-bottom: 0;
+        }
+        .market-icon { font-size: 24px; }
+        .market-title { font-weight: bold; font-size: 13px; }
+        .market-profit { font-size: 10px; color: #888; }
+        .market-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            border-top: 1px solid #2d3844; padding-top: 8px; margin-top: 5px;
+        }
+
+        .btn-action {
+            background: var(--accent); color: white; border: none;
+            padding: 8px 12px; border-radius: 8px; font-weight: bold;
+            cursor: pointer; font-size: 11px;
+        }
+
+        .admin-input {
+            width: 100%; padding: 12px; margin: 8px 0;
+            background: #0b141d; border: 1px solid #333; color: white; border-radius: 8px;
+        }
+
+        .plus-one {
+            position: absolute; font-size: 28px; font-weight: bold;
+            color: white; pointer-events: none;
+            z-index: 2000;
+            animation: floatCenter 0.8s ease-out forwards;
+        }
+
+        @keyframes floatCenter {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-100px); }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="admin-banner" id="admin-banner" onclick="switchTab('admin')">
+        🛠 ADMIN PANEL (6741153061)
+    </div>
+
+    <div class="user-header">
+        <div class="user-info">
+            <div class="user-avatar" id="user-letter">U</div>
+            <div id="user-name">Foydalanuvchi</div>
+        </div>
+        <button class="wallet-btn" onclick="connectWallet()">Connect TON</button>
+    </div>
+
+    <div class="main-content">
+        <div class="score-value" id="balance">0</div>
+        <div class="profit-text">Soatiga daromad: +<span id="pps">0</span></div>
+
+        <div class="coin-area" id="area">
+            <div id="coin"></div>
+        </div>
+    </div>
+
+    <div id="shop-panel" class="panel">
+        <h3 style="margin-bottom: 10px;">Birja va Do'kon</h3>
+        <div style="color: #888; font-size: 12px; margin-bottom: 15px;">Pasiv daromadni oshirish uchun kartalarni sotib oling.</div>
+
+        <div class="market-grid">
+            <div class="market-card" id="card-fan">
+                <div class="market-icon">📈</div>
+                <div class="market-title">Fan Tokens</div>
+                <div class="market-profit">Profit/h: <span style="color:var(--accent)">+500</span></div>
+                <div class="market-footer">
+                    <span style="font-size:10px">Lvl <span id="lvl-fan">0</span></span>
+                    <button class="btn-action" onclick="buyMarketCard('fan', 1000, 500, 'card-fan')">💰 <span id="price-fan">1000</span></button>
+                </div>
+            </div>
+
+            <div class="market-card" id="card-stake">
+                <div class="market-icon">🏦</div>
+                <div class="market-title">Staking</div>
+                <div class="market-profit">Profit/h: <span style="color:var(--accent)">+1.2k</span></div>
+                <div class="market-footer">
+                    <span style="font-size:10px">Lvl <span id="lvl-stake">0</span></span>
+                    <button class="btn-action" onclick="buyMarketCard('stake', 5000, 1200, 'card-stake')">💰 <span id="price-stake">5000</span></button>
+                </div>
+            </div>
+        </div>
+
+        <h4 style="margin: 20px 0 10px 0;">Boosters</h4>
+        <div class="item-card" id="card-booster">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                    <div>Auto-Miner V1</div>
+                    <small style="color: #888;">+100/soat | Narxi: <span id="booster-price">500</span></small>
+                </div>
+                <button class="btn-action" onclick="buyBooster('card-booster')">Sotib olish</button>
+            </div>
+        </div>
+        <div class="item-card" id="card-click">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div>
+                    <div>Super Click</div>
+                    <small style="color: #888;">Click +1 | Narxi: <span id="click-price">200</span></small>
+                </div>
+                <button class="btn-action" onclick="buyClickBoost('card-click')">Sotib olish</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mission-panel" class="panel">
+        <h3 style="margin-bottom: 15px;">Vazifalar</h3>
+        <div id="missions-container"></div>
+    </div>
+
+    <div id="admin-panel" class="panel" style="border-top-color: var(--danger);">
+        <h3 style="margin-bottom: 15px;">Admin Boshqaruvi</h3>
+        
+        <div style="background: var(--card); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+            <h4 style="font-size: 14px; margin-bottom: 10px;">Foydalanuvchilar (Baza kerak)</h4>
+            <div id="admin-user-list">
+                <div style="color: #888; font-size: 12px; text-align: center;">Barcha foydalanuvchilarni ko'rish uchun Firebase ulanishi shart.</div>
+            </div>
+        </div>
+
+        <h4>Yangi Missiya Qo'shish</h4>
+        <input type="text" id="m-title" class="admin-input" placeholder="Missiya nomi">
+        <input type="number" id="m-reward" class="admin-input" placeholder="Mukofot (tanga)">
+        <input type="text" id="m-link" class="admin-input" placeholder="Kanal linki (https://...)">
+        <button class="btn-action" style="width: 100%; margin-top: 10px; background: var(--danger);" onclick="addNewMission()">Qo'shish</button>
+        <button class="btn-action" style="width: 100%; margin-top: 10px; background: #555;" onclick="switchTab('main')">Yopish</button>
+    </div>
+
+    <nav class="bottom-nav">
+        <div class="nav-item active" id="nav-main" onclick="switchTab('main')">
+            <span class="nav-icon">🏠</span>
+            <span>Asosiy</span>
+        </div>
+        <div class="nav-item" id="nav-shop" onclick="switchTab('shop')">
+            <span class="nav-icon">⚡</span>
+            <span>Shop</span>
+        </div>
+        <div class="nav-item" id="nav-mission" onclick="switchTab('mission')">
+            <span class="nav-icon">🎯</span>
+            <span>Missiyalar</span>
+        </div>
+        <div class="nav-item" onclick="handleWalletClick()">
+            <span class="nav-icon">💎</span>
+            <span>Wallet</span>
+        </div>
+    </nav>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    const ADMIN_ID = 6741153061;
+    const BOT_TOKEN = "8691073737:AAG2ZXLNZSXUEhiWwoQycnl9l0fhduGIXIo";
+
+    if (tg.expand) tg.expand();
+
+    // Ma'lumotlarni saqlash (Local Storage)
+    let balance = parseFloat(localStorage.getItem('h_balance')) || 0;
+    let profitPerHour = parseFloat(localStorage.getItem('h_pps')) || 0;
+    let clickPower = parseInt(localStorage.getItem('h_click')) || 1;
+    let prices = JSON.parse(localStorage.getItem('h_prices')) || { booster: 500, click: 200 };
+    
+    let marketCards = JSON.parse(localStorage.getItem('h_market')) || {
+        fan: { lvl: 0, price: 1000, profitAdd: 500 },
+        stake: { lvl: 0, price: 5000, profitAdd: 1200 }
+    };
+    
+    let missions = JSON.parse(localStorage.getItem('h_missions')) || [
+        { id: 1, title: "Telegram kanalga obuna", reward: 1000, link: "https://t.me/example", completed: false, clicked: false }
+    ];
+
+    // Admin tekshiruvi
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        const user = tg.initDataUnsafe.user;
+        document.getElementById('user-name').innerText = user.first_name;
+        document.getElementById('user-letter').innerText = user.first_name.charAt(0);
+        
+        if (user.id === ADMIN_ID) {
+            document.getElementById('admin-banner').style.display = 'block';
+        }
+    }
+
+    const balanceDisplay = document.getElementById('balance');
+
+    function saveToLocal() {
+        localStorage.setItem('h_balance', balance);
+        localStorage.setItem('h_pps', profitPerHour);
+        localStorage.setItem('h_click', clickPower);
+        localStorage.setItem('h_prices', JSON.stringify(prices));
+        localStorage.setItem('h_market', JSON.stringify(marketCards));
+        localStorage.setItem('h_missions', JSON.stringify(missions));
+    }
+
+    function showErrorEffect(cardId) {
+        const el = document.getElementById(cardId);
+        if (el) {
+            el.classList.add('shake-error');
+            setTimeout(() => el.classList.remove('shake-error'), 400);
+        }
+        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
+    }
+
+    document.getElementById('coin').addEventListener('touchstart', function(e) {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+            let touch = e.changedTouches[i];
+            balance += clickPower;
+            updateUI();
+            const plusOne = document.createElement('div');
+            plusOne.className = 'plus-one';
+            plusOne.innerText = '+' + clickPower;
+            plusOne.style.left = touch.pageX + 'px';
+            plusOne.style.top = touch.pageY + 'px';
+            plusOne.style.marginLeft = '-15px';
+            document.body.appendChild(plusOne);
+            setTimeout(() => plusOne.remove(), 800);
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+        }
+        saveToLocal();
+    }, { passive: false });
+
+    function switchTab(tab) {
+        const panels = ['shop-panel', 'mission-panel', 'admin-panel'];
+        panels.forEach(p => {
+            const panel = document.getElementById(p);
+            if(panel) panel.style.display = 'none';
+        });
+        
+        if (tab !== 'main') {
+            const target = document.getElementById(tab + '-panel');
+            if(target) target.style.display = 'block';
+        }
+
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        const activeNav = document.getElementById('nav-' + tab);
+        if (activeNav) activeNav.classList.add('active');
+        if (tab === 'mission') renderMissions();
+    }
+
+    function addNewMission() {
+        const title = document.getElementById('m-title').value;
+        const reward = parseInt(document.getElementById('m-reward').value);
+        const link = document.getElementById('m-link').value;
+
+        if (title && reward && link) {
+            missions.push({
+                id: Date.now(),
+                title: title,
+                reward: reward,
+                link: link,
+                completed: false,
+                clicked: false
+            });
+            document.getElementById('m-title').value = '';
+            document.getElementById('m-reward').value = '';
+            document.getElementById('m-link').value = '';
+            alert("Missiya qo'shildi!");
+            saveToLocal();
+            switchTab('mission');
+        } else {
+            alert("Barcha maydonlarni to'ldiring!");
+        }
+    }
+
+    function renderMissions() {
+        const container = document.getElementById('missions-container');
+        container.innerHTML = "";
+        missions.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'item-card';
+            
+            let actionsHtml = '';
+            if (m.completed) {
+                actionsHtml = `<button class="btn-action" style="background:#555" disabled>Bajarildi ✅</button>`;
+            } else {
+                const goBtnStyle = m.clicked ? "background:#555" : "background:var(--ton)";
+                actionsHtml = `
+                    <div style="display:flex; gap:5px;">
+                        <button class="btn-action" style="${goBtnStyle}" onclick="event.stopPropagation(); doMission(${m.id}, '${m.link}')">O'tish</button>
+                        ${m.clicked ? `<button class="btn-action" style="background:var(--accent)" onclick="event.stopPropagation(); verifyMission(${m.id})">Tekshirish</button>` : ''}
+                    </div>
+                `;
+            }
+
+            item.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div>${m.title}</div>
+                        <small style="color:var(--primary)">+${m.reward.toLocaleString()} tanga</small>
+                    </div>
+                    ${actionsHtml}
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    function doMission(id, link) {
+        const m = missions.find(x => x.id === id);
+        if (m) {
+            m.clicked = true;
+            saveToLocal();
+            // Telegram ichida ochish va oq ekranni oldini olish
+            if (link.includes('t.me') && tg.openTelegramLink) {
+                tg.openTelegramLink(link);
+            } else if (tg.openLink) {
+                tg.openLink(link);
+            } else {
+                window.open(link, '_blank');
+            }
+            renderMissions();
+        }
+    }
+
+    function verifyMission(id) {
+        const m = missions.find(x => x.id === id);
+        if (m && m.clicked && !m.completed) {
+            m.completed = true;
+            balance += m.reward;
+            saveToLocal();
+            updateUI();
+            renderMissions();
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        }
+    }
+
+    function buyMarketCard(type, basePrice, profit, cardId) {
+        let card = marketCards[type];
+        if (balance >= card.price) {
+            balance -= card.price;
+            profitPerHour += card.profitAdd;
+            card.lvl += 1;
+            card.price = Math.floor(card.price * 1.6);
+            updateUI();
+            saveToLocal();
+            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+        } else {
+            showErrorEffect(cardId);
+        }
+    }
+
+    function buyBooster(cardId) {
+        if (balance >= prices.booster) {
+            balance -= prices.booster;
+            profitPerHour += 100;
+            prices.booster = Math.floor(prices.booster * 1.8);
+            updateUI();
+            saveToLocal();
+        } else showErrorEffect(cardId);
+    }
+
+    function buyClickBoost(cardId) {
+        if (balance >= prices.click) {
+            balance -= prices.click;
+            clickPower += 1;
+            prices.click = Math.floor(prices.click * 2.2);
+            updateUI();
+            saveToLocal();
+        } else showErrorEffect(cardId);
+    }
+
+    function updateUI() {
+        balanceDisplay.innerText = Math.floor(balance).toLocaleString();
+        if(document.getElementById('pps')) document.getElementById('pps').innerText = Math.floor(profitPerHour).toLocaleString();
+        if(document.getElementById('booster-price')) document.getElementById('booster-price').innerText = prices.booster.toLocaleString();
+        if(document.getElementById('click-price')) document.getElementById('click-price').innerText = prices.click.toLocaleString();
+        if(document.getElementById('lvl-fan')) document.getElementById('lvl-fan').innerText = marketCards.fan.lvl;
+        if(document.getElementById('price-fan')) document.getElementById('price-fan').innerText = marketCards.fan.price.toLocaleString();
+        if(document.getElementById('lvl-stake')) document.getElementById('lvl-stake').innerText = marketCards.stake.lvl;
+        if(document.getElementById('price-stake')) document.getElementById('price-stake').innerText = marketCards.stake.price.toLocaleString();
+    }
+
+    function connectWallet() {
+        if (confirm("TON Wallet ulansinmi?")) {
+            const btn = document.querySelector('.wallet-btn');
+            if(btn) {
+                btn.innerText = "UQ...7aX";
+                btn.style.background = "#28a745";
+            }
+        }
+    }
+
+    function handleWalletClick() {
+        alert("Wallet tizimi yaqin orada ishga tushadi.");
+    }
+
+    setInterval(() => {
+        if (profitPerHour > 0) {
+            balance += (profitPerHour / 3600);
+            updateUI();
+            // Har 15 soniyada saqlash
+            if (Math.round(balance) % 15 === 0) saveToLocal();
+        }
+    }, 1000);
+
+    updateUI();
+</script>
+</body>
+</html>

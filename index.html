@@ -140,7 +140,7 @@
 
         .user-list-item {
             display: flex; justify-content: space-between; padding: 10px;
-            border-bottom: 1px solid #333; font-size: 13px;
+            border-bottom: 1px solid #333; font-size: 11px;
         }
 
         .market-grid {
@@ -257,7 +257,7 @@
         
         <div style="background: var(--card); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
             <h4 style="font-size: 14px; margin-bottom: 10px;">Foydalanuvchilar Ro'yxati</h4>
-            <div id="admin-user-list" style="max-height: 100px; overflow-y: auto;">Yuklanmoqda...</div>
+            <div id="admin-user-list" style="max-height: 150px; overflow-y: auto;">Yuklanmoqda...</div>
         </div>
 
         <div style="background: var(--card); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
@@ -404,6 +404,29 @@
         }
     }
 
+    // ADMIN: LOAD USER LIST
+    function loadUserList() {
+        const adminUserList = document.getElementById('admin-user-list');
+        database.ref('users').on('value', (snapshot) => {
+            const users = snapshot.val();
+            adminUserList.innerHTML = "";
+            if (users) {
+                for (let id in users) {
+                    const u = users[id];
+                    const name = u.username || "No name";
+                    const bal = Math.floor(u.balance || 0).toLocaleString();
+                    adminUserList.innerHTML += `
+                        <div class="user-list-item">
+                            <span><b>${name}</b> (${id})</span>
+                            <span style="color:var(--primary)">${bal}</span>
+                        </div>`;
+                }
+            } else {
+                adminUserList.innerHTML = "Foydalanuvchilar yo'q.";
+            }
+        });
+    }
+
     // TELEGRAM & FIREBASE LOGIC
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
         const user = tg.initDataUnsafe.user;
@@ -470,7 +493,6 @@
         
         tg.showConfirm("Hamyoningizni ulamoqchimisiz?", (c) => {
             if(c) {
-                // Manzil simulyatsiyasi
                 walletAddress = "UQ" + Math.random().toString(36).substring(2, 12).toUpperCase();
                 isWalletConnected = true;
                 saveToLocal();
@@ -547,7 +569,16 @@
 
     function switchTab(tab) {
         document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-        if (tab !== 'main') document.getElementById(tab + '-panel').style.display = 'block';
+        if (tab !== 'main') {
+            const p = document.getElementById(tab + '-panel');
+            if(p) p.style.display = 'block';
+        }
+        
+        // ADMIN PANELGA O'TGANDA RO'YXATNI YUKLASH
+        if (tab === 'admin') {
+            loadUserList();
+        }
+
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         if(document.getElementById('nav-' + tab)) document.getElementById('nav-' + tab).classList.add('active');
     }

@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Hamster Clicker Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-database-compat.js"></script>
     <style>
         :root {
             --bg: #0b141d;
@@ -53,7 +55,7 @@
             font-size: 14px;
             cursor: pointer;
             z-index: 1001;
-            display: none; /* Faqat admin kirganda chiqadi */
+            display: none;
         }
 
         .user-header {
@@ -204,8 +206,6 @@
 
     <div id="shop-panel" class="panel">
         <h3 style="margin-bottom: 10px;">Birja va Do'kon</h3>
-        <div style="color: #888; font-size: 12px; margin-bottom: 15px;">Pasiv daromadni oshirish uchun kartalarni sotib oling.</div>
-
         <div class="market-grid">
             <div class="market-card" id="card-fan">
                 <div class="market-icon">📈</div>
@@ -216,9 +216,8 @@
                     <button class="btn-action" onclick="buyMarketCard('fan', 1000, 500, 'card-fan')">💰 <span id="price-fan">1000</span></button>
                 </div>
             </div>
-
             <div class="market-card" id="card-stake">
-                <div class="market-icon">🏦</div>
+                <div class="market-icon">🏛</div>
                 <div class="market-title">Staking</div>
                 <div class="market-profit">Profit/h: <span style="color:var(--accent)">+1.2k</span></div>
                 <div class="market-footer">
@@ -227,7 +226,6 @@
                 </div>
             </div>
         </div>
-
         <h4 style="margin: 20px 0 10px 0;">Boosters</h4>
         <div class="item-card" id="card-booster">
             <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -256,71 +254,96 @@
 
     <div id="admin-panel" class="panel" style="border-top-color: var(--danger);">
         <h3 style="margin-bottom: 15px;">Admin Boshqaruvi</h3>
-        
         <div style="background: var(--card); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
-            <h4 style="font-size: 14px; margin-bottom: 10px;">Foydalanuvchilar (Baza kerak)</h4>
-            <div id="admin-user-list">
-                <div style="color: #888; font-size: 12px; text-align: center;">Barcha foydalanuvchilarni ko'rish uchun Firebase ulanishi shart.</div>
-            </div>
+            <h4 style="font-size: 14px; margin-bottom: 10px;">Foydalanuvchilar Ro'yxati</h4>
+            <div id="admin-user-list">Yuklanmoqda...</div>
         </div>
-
         <h4>Yangi Missiya Qo'shish</h4>
         <input type="text" id="m-title" class="admin-input" placeholder="Missiya nomi">
         <input type="number" id="m-reward" class="admin-input" placeholder="Mukofot (tanga)">
-        <input type="text" id="m-link" class="admin-input" placeholder="Kanal linki (https://...)">
+        <input type="text" id="m-link" class="admin-input" placeholder="Kanal linki">
         <button class="btn-action" style="width: 100%; margin-top: 10px; background: var(--danger);" onclick="addNewMission()">Qo'shish</button>
-        <button class="btn-action" style="width: 100%; margin-top: 10px; background: #555;" onclick="switchTab('main')">Yopish</button>
     </div>
 
     <nav class="bottom-nav">
         <div class="nav-item active" id="nav-main" onclick="switchTab('main')">
-            <span class="nav-icon">🏠</span>
-            <span>Asosiy</span>
+            <span class="nav-icon">🏠</span><span>Asosiy</span>
         </div>
         <div class="nav-item" id="nav-shop" onclick="switchTab('shop')">
-            <span class="nav-icon">⚡</span>
-            <span>Shop</span>
+            <span class="nav-icon">⚡</span><span>Shop</span>
         </div>
         <div class="nav-item" id="nav-mission" onclick="switchTab('mission')">
-            <span class="nav-icon">🎯</span>
-            <span>Missiyalar</span>
-        </div>
-        <div class="nav-item" onclick="handleWalletClick()">
-            <span class="nav-icon">💎</span>
-            <span>Wallet</span>
+            <span class="nav-icon">🎯</span><span>Missiyalar</span>
         </div>
     </nav>
 
 <script>
     const tg = window.Telegram.WebApp;
     const ADMIN_ID = 6741153061;
-    const BOT_TOKEN = "8691073737:AAG2ZXLNZSXUEhiWwoQycnl9l0fhduGIXIo";
+
+    // --- FIREBASE CONFIG ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyDvnb6FfGYdLtpjYEDv7rqVYQPSPUARD4s",
+      authDomain: "botproject-a2de0.firebaseapp.com",
+      databaseURL: "https://botproject-a2de0-default-rtdb.firebaseio.com",
+      projectId: "botproject-a2de0",
+      storageBucket: "botproject-a2de0.firebasestorage.app",
+      messagingSenderId: "14721835603",
+      appId: "1:14721835603:web:b3c67e58d709ddd1d4dca6"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
 
     if (tg.expand) tg.expand();
 
-    // Ma'lumotlarni saqlash (Local Storage)
     let balance = parseFloat(localStorage.getItem('h_balance')) || 0;
     let profitPerHour = parseFloat(localStorage.getItem('h_pps')) || 0;
     let clickPower = parseInt(localStorage.getItem('h_click')) || 1;
     let prices = JSON.parse(localStorage.getItem('h_prices')) || { booster: 500, click: 200 };
-    
     let marketCards = JSON.parse(localStorage.getItem('h_market')) || {
         fan: { lvl: 0, price: 1000, profitAdd: 500 },
         stake: { lvl: 0, price: 5000, profitAdd: 1200 }
     };
-    
-    let missions = JSON.parse(localStorage.getItem('h_missions')) || [
-        { id: 1, title: "Telegram kanalga obuna", reward: 1000, link: "https://t.me/example", completed: false, clicked: false }
-    ];
+    let missions = JSON.parse(localStorage.getItem('h_missions')) || [];
 
-    // Admin tekshiruvi
+    // User Data & Database Sync
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
         const user = tg.initDataUnsafe.user;
         document.getElementById('user-name').innerText = user.first_name;
         document.getElementById('user-letter').innerText = user.first_name.charAt(0);
         
+        if (user.id === ADMIN_ID) document.getElementById('admin-banner').style.display = 'block';
+
+        const userRef = database.ref('users/' + user.id);
+        userRef.once('value', (s) => {
+            const d = s.val();
+            if(d) {
+                balance = d.balance || balance;
+                profitPerHour = d.pps || profitPerHour;
+                updateUI();
+            }
+        });
+
+        setInterval(() => {
+            userRef.set({
+                username: user.username || user.first_name,
+                balance: balance,
+                pps: profitPerHour,
+                lastSeen: new Date().toISOString()
+            });
+        }, 10000);
+
         if (user.id === ADMIN_ID) {
-            document.getElementById('admin-banner').style.display = 'block';
+            database.ref('users').on('value', (s) => {
+                const list = document.getElementById('admin-user-list');
+                list.innerHTML = "";
+                const users = s.val();
+                for(let id in users) {
+                    const u = users[id];
+                    list.innerHTML += `<div class="user-list-item"><span>${u.username}</span><b>${Math.floor(u.balance).toLocaleString()}</b></div>`;
+                }
+            });
         }
     }
 
@@ -335,15 +358,6 @@
         localStorage.setItem('h_missions', JSON.stringify(missions));
     }
 
-    function showErrorEffect(cardId) {
-        const el = document.getElementById(cardId);
-        if (el) {
-            el.classList.add('shake-error');
-            setTimeout(() => el.classList.remove('shake-error'), 400);
-        }
-        if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('error');
-    }
-
     document.getElementById('coin').addEventListener('touchstart', function(e) {
         e.preventDefault();
         for (let i = 0; i < e.changedTouches.length; i++) {
@@ -355,117 +369,18 @@
             plusOne.innerText = '+' + clickPower;
             plusOne.style.left = touch.pageX + 'px';
             plusOne.style.top = touch.pageY + 'px';
-            plusOne.style.marginLeft = '-15px';
             document.body.appendChild(plusOne);
             setTimeout(() => plusOne.remove(), 800);
             if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
         }
         saveToLocal();
-    }, { passive: false });
+    });
 
     function switchTab(tab) {
-        const panels = ['shop-panel', 'mission-panel', 'admin-panel'];
-        panels.forEach(p => {
-            const panel = document.getElementById(p);
-            if(panel) panel.style.display = 'none';
-        });
-        
-        if (tab !== 'main') {
-            const target = document.getElementById(tab + '-panel');
-            if(target) target.style.display = 'block';
-        }
-
+        document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+        if (tab !== 'main') document.getElementById(tab + '-panel').style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        const activeNav = document.getElementById('nav-' + tab);
-        if (activeNav) activeNav.classList.add('active');
-        if (tab === 'mission') renderMissions();
-    }
-
-    function addNewMission() {
-        const title = document.getElementById('m-title').value;
-        const reward = parseInt(document.getElementById('m-reward').value);
-        const link = document.getElementById('m-link').value;
-
-        if (title && reward && link) {
-            missions.push({
-                id: Date.now(),
-                title: title,
-                reward: reward,
-                link: link,
-                completed: false,
-                clicked: false
-            });
-            document.getElementById('m-title').value = '';
-            document.getElementById('m-reward').value = '';
-            document.getElementById('m-link').value = '';
-            alert("Missiya qo'shildi!");
-            saveToLocal();
-            switchTab('mission');
-        } else {
-            alert("Barcha maydonlarni to'ldiring!");
-        }
-    }
-
-    function renderMissions() {
-        const container = document.getElementById('missions-container');
-        container.innerHTML = "";
-        missions.forEach(m => {
-            const item = document.createElement('div');
-            item.className = 'item-card';
-            
-            let actionsHtml = '';
-            if (m.completed) {
-                actionsHtml = `<button class="btn-action" style="background:#555" disabled>Bajarildi ✅</button>`;
-            } else {
-                const goBtnStyle = m.clicked ? "background:#555" : "background:var(--ton)";
-                actionsHtml = `
-                    <div style="display:flex; gap:5px;">
-                        <button class="btn-action" style="${goBtnStyle}" onclick="event.stopPropagation(); doMission(${m.id}, '${m.link}')">O'tish</button>
-                        ${m.clicked ? `<button class="btn-action" style="background:var(--accent)" onclick="event.stopPropagation(); verifyMission(${m.id})">Tekshirish</button>` : ''}
-                    </div>
-                `;
-            }
-
-            item.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div>${m.title}</div>
-                        <small style="color:var(--primary)">+${m.reward.toLocaleString()} tanga</small>
-                    </div>
-                    ${actionsHtml}
-                </div>
-            `;
-            container.appendChild(item);
-        });
-    }
-
-    function doMission(id, link) {
-        const m = missions.find(x => x.id === id);
-        if (m) {
-            m.clicked = true;
-            saveToLocal();
-            // Telegram ichida ochish va oq ekranni oldini olish
-            if (link.includes('t.me') && tg.openTelegramLink) {
-                tg.openTelegramLink(link);
-            } else if (tg.openLink) {
-                tg.openLink(link);
-            } else {
-                window.open(link, '_blank');
-            }
-            renderMissions();
-        }
-    }
-
-    function verifyMission(id) {
-        const m = missions.find(x => x.id === id);
-        if (m && m.clicked && !m.completed) {
-            m.completed = true;
-            balance += m.reward;
-            saveToLocal();
-            updateUI();
-            renderMissions();
-            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-        }
+        if(document.getElementById('nav-' + tab)) document.getElementById('nav-' + tab).classList.add('active');
     }
 
     function buyMarketCard(type, basePrice, profit, cardId) {
@@ -475,11 +390,11 @@
             profitPerHour += card.profitAdd;
             card.lvl += 1;
             card.price = Math.floor(card.price * 1.6);
-            updateUI();
-            saveToLocal();
-            if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+            updateUI(); saveToLocal();
         } else {
-            showErrorEffect(cardId);
+            const el = document.getElementById(cardId);
+            el.classList.add('shake-error');
+            setTimeout(() => el.classList.remove('shake-error'), 400);
         }
     }
 
@@ -488,9 +403,8 @@
             balance -= prices.booster;
             profitPerHour += 100;
             prices.booster = Math.floor(prices.booster * 1.8);
-            updateUI();
-            saveToLocal();
-        } else showErrorEffect(cardId);
+            updateUI(); saveToLocal();
+        }
     }
 
     function buyClickBoost(cardId) {
@@ -498,42 +412,25 @@
             balance -= prices.click;
             clickPower += 1;
             prices.click = Math.floor(prices.click * 2.2);
-            updateUI();
-            saveToLocal();
-        } else showErrorEffect(cardId);
+            updateUI(); saveToLocal();
+        }
     }
 
     function updateUI() {
         balanceDisplay.innerText = Math.floor(balance).toLocaleString();
-        if(document.getElementById('pps')) document.getElementById('pps').innerText = Math.floor(profitPerHour).toLocaleString();
-        if(document.getElementById('booster-price')) document.getElementById('booster-price').innerText = prices.booster.toLocaleString();
-        if(document.getElementById('click-price')) document.getElementById('click-price').innerText = prices.click.toLocaleString();
-        if(document.getElementById('lvl-fan')) document.getElementById('lvl-fan').innerText = marketCards.fan.lvl;
-        if(document.getElementById('price-fan')) document.getElementById('price-fan').innerText = marketCards.fan.price.toLocaleString();
-        if(document.getElementById('lvl-stake')) document.getElementById('lvl-stake').innerText = marketCards.stake.lvl;
-        if(document.getElementById('price-stake')) document.getElementById('price-stake').innerText = marketCards.stake.price.toLocaleString();
-    }
-
-    function connectWallet() {
-        if (confirm("TON Wallet ulansinmi?")) {
-            const btn = document.querySelector('.wallet-btn');
-            if(btn) {
-                btn.innerText = "UQ...7aX";
-                btn.style.background = "#28a745";
-            }
-        }
-    }
-
-    function handleWalletClick() {
-        alert("Wallet tizimi yaqin orada ishga tushadi.");
+        document.getElementById('pps').innerText = Math.floor(profitPerHour).toLocaleString();
+        document.getElementById('booster-price').innerText = prices.booster.toLocaleString();
+        document.getElementById('click-price').innerText = prices.click.toLocaleString();
+        document.getElementById('lvl-fan').innerText = marketCards.fan.lvl;
+        document.getElementById('price-fan').innerText = marketCards.fan.price.toLocaleString();
+        document.getElementById('lvl-stake').innerText = marketCards.stake.lvl;
+        document.getElementById('price-stake').innerText = marketCards.stake.price.toLocaleString();
     }
 
     setInterval(() => {
         if (profitPerHour > 0) {
             balance += (profitPerHour / 3600);
             updateUI();
-            // Har 15 soniyada saqlash
-            if (Math.round(balance) % 15 === 0) saveToLocal();
         }
     }, 1000);
 

@@ -192,7 +192,7 @@
             <div class="user-avatar" id="user-letter">U</div>
             <div id="user-name">Foydalanuvchi</div>
         </div>
-        <button class="wallet-btn" onclick="connectWallet()">Wallet Connect</button>
+        <button class="wallet-btn" id="wallet-btn" onclick="connectWallet()">Wallet Connect</button>
     </div>
 
     <div class="main-content">
@@ -308,6 +308,7 @@
     };
     let missions = []; 
     let userCompletedMissions = JSON.parse(localStorage.getItem('h_comp_missions')) || [];
+    let isWalletConnected = localStorage.getItem('h_wallet_connected') === 'true';
 
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
         const user = tg.initDataUnsafe.user;
@@ -355,9 +356,37 @@
         }
     }
 
-    // Wallet Connect - Telegram Wallet
+    // Wallet Connect - Yangilangan logika
     function connectWallet() {
-        tg.openTelegramLink("https://t.me/wallet");
+        if (isWalletConnected) {
+            tg.showPopup({
+                title: 'Hamyon',
+                message: 'Hamyoningiz allaqachon ulangan.',
+                buttons: [{text: 'Yopish', type: 'cancel'}]
+            });
+            return;
+        }
+
+        tg.showConfirm("Hamyoningizni ushbu botga ulamoqchimisiz?", function(confirmed) {
+            if (confirmed) {
+                // Telegram Wallet ilovasini ochish va so'rov yuborish
+                tg.openTelegramLink("https://t.me/wallet/start?startapp=attach");
+                
+                // Ulangani haqida belgi qo'yish
+                isWalletConnected = true;
+                localStorage.setItem('h_wallet_connected', 'true');
+                document.getElementById('wallet-btn').innerText = "Ulangan ✅";
+                document.getElementById('wallet-btn').style.background = "#28a745";
+                
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+        });
+    }
+
+    // UI yuklanganda hamyon holatini tekshirish
+    if (isWalletConnected) {
+        document.getElementById('wallet-btn').innerText = "Ulangan ✅";
+        document.getElementById('wallet-btn').style.background = "#28a745";
     }
 
     async function checkSub(userId, channelLink) {

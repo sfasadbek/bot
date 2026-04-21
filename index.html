@@ -318,6 +318,7 @@
     let missions = []; 
     let userCompletedMissions = JSON.parse(localStorage.getItem('h_comp_missions')) || [];
     let isWalletConnected = localStorage.getItem('h_wallet_connected') === 'true';
+    let walletAddress = localStorage.getItem('h_wallet_addr') || "";
 
     // SAVING & UI
     function saveToLocal() {
@@ -327,6 +328,8 @@
         localStorage.setItem('h_prices', JSON.stringify(prices));
         localStorage.setItem('h_market', JSON.stringify(marketCards));
         localStorage.setItem('h_comp_missions', JSON.stringify(userCompletedMissions));
+        localStorage.setItem('h_wallet_connected', isWalletConnected);
+        localStorage.setItem('h_wallet_addr', walletAddress);
     }
 
     function updateUI() {
@@ -338,6 +341,15 @@
         document.getElementById('price-fan').innerText = marketCards.fan.price.toLocaleString();
         document.getElementById('lvl-stake').innerText = marketCards.stake.lvl;
         document.getElementById('price-stake').innerText = marketCards.stake.price.toLocaleString();
+
+        const wBtn = document.getElementById('wallet-btn');
+        if (isWalletConnected) {
+            wBtn.innerText = walletAddress ? walletAddress.substring(0, 8) + "..." : "Ulangan ✅";
+            wBtn.style.background = "var(--accent)";
+        } else {
+            wBtn.innerText = "Wallet Connect";
+            wBtn.style.background = "var(--ton)";
+        }
     }
 
     // PURCHASE FUNCTIONS
@@ -347,7 +359,7 @@
             balance -= card.price;
             profitPerHour += card.profitAdd;
             card.lvl += 1;
-            card.price = Math.floor(card.price * 2.5); // Har gal narx 2.5 barobar oshadi
+            card.price = Math.floor(card.price * 2.5);
             
             updateUI();
             saveToLocal();
@@ -425,18 +437,46 @@
         });
 
         setInterval(() => {
-            userRef.update({ username: user.username || user.first_name, balance: balance, pps: profitPerHour, lastSeen: new Date().toISOString() });
+            userRef.update({ 
+                username: user.username || user.first_name, 
+                balance: balance, 
+                pps: profitPerHour, 
+                wallet: walletAddress,
+                lastSeen: new Date().toISOString() 
+            });
         }, 10000);
     }
 
     function connectWallet() {
-        if (isWalletConnected) return;
+        if (isWalletConnected) {
+            tg.showPopup({
+                title: "Hamyon",
+                message: "Hamyoningiz ulanib bo'lingan. Uzishni xohlaysizmi?",
+                buttons: [
+                    {id: 'disconnect', type: 'destructive', text: 'Uzish'},
+                    {type: 'cancel', text: 'Bekor qilish'}
+                ]
+            }, (id) => {
+                if(id === 'disconnect') {
+                    isWalletConnected = false;
+                    walletAddress = "";
+                    saveToLocal();
+                    updateUI();
+                    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+                }
+            });
+            return;
+        }
+        
         tg.showConfirm("Hamyoningizni ulamoqchimisiz?", (c) => {
             if(c) {
+                // Manzil simulyatsiyasi
+                walletAddress = "UQ" + Math.random().toString(36).substring(2, 12).toUpperCase();
                 isWalletConnected = true;
-                localStorage.setItem('h_wallet_connected', 'true');
-                document.getElementById('wallet-btn').innerText = "Ulangan ✅";
-                document.getElementById('wallet-btn').style.background = "var(--accent)";
+                saveToLocal();
+                updateUI();
+                if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
+                alert("Muvaffaqiyatli ulandi!");
             }
         });
     }

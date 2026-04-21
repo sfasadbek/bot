@@ -263,6 +263,7 @@
         <input type="number" id="m-reward" class="admin-input" placeholder="Mukofot (tanga)">
         <input type="text" id="m-link" class="admin-input" placeholder="Kanal linki">
         <button class="btn-action" style="width: 100%; margin-top: 10px; background: var(--danger);" onclick="addNewMission()">Qo'shish</button>
+        <button class="btn-action" style="width: 100%; margin-top: 10px; background: #555;" onclick="switchTab('main')">Yopish</button>
     </div>
 
     <nav class="bottom-nav">
@@ -305,7 +306,8 @@
         fan: { lvl: 0, price: 1000, profitAdd: 500 },
         stake: { lvl: 0, price: 5000, profitAdd: 1200 }
     };
-    let missions = JSON.parse(localStorage.getItem('h_missions')) || [];
+    let missions = []; 
+    let userCompletedMissions = JSON.parse(localStorage.getItem('h_comp_missions')) || [];
 
     // User Data & Database Sync
     if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
@@ -325,8 +327,16 @@
             }
         });
 
+        // Missiyalarni yuklash
+        database.ref('missions').on('value', (s) => {
+            missions = [];
+            const data = s.val();
+            for(let id in data) missions.push({id, ...data[id]});
+            renderMissions();
+        });
+
         setInterval(() => {
-            userRef.set({
+            userRef.update({
                 username: user.username || user.first_name,
                 balance: balance,
                 pps: profitPerHour,
@@ -347,6 +357,56 @@
         }
     }
 
+    function renderMissions() {
+        const container = document.getElementById('missions-container');
+        container.innerHTML = "";
+        missions.forEach(m => {
+            const isDone = userCompletedMissions.includes(m.id);
+            const item = document.createElement('div');
+            item.className = 'item-card';
+            item.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div>${m.title}</div>
+                        <small style="color:var(--primary)">+${parseInt(m.reward).toLocaleString()} tanga</small>
+                    </div>
+                    <button class="btn-action" style="${isDone ? 'background:#555' : ''}" 
+                        onclick="${isDone ? '' : `doMission('${m.id}', '${m.link}', ${m.reward})`}">
+                        ${isDone ? 'Bajarildi ✅' : 'Bajarish'}
+                    </button>
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    function doMission(id, link, reward) {
+        tg.openLink(link);
+        setTimeout(() => {
+            if(!userCompletedMissions.includes(id)) {
+                userCompletedMissions.push(id);
+                balance += parseInt(reward);
+                localStorage.setItem('h_comp_missions', JSON.stringify(userCompletedMissions));
+                updateUI();
+                renderMissions();
+                tg.HapticFeedback.notificationOccurred('success');
+            }
+        }, 2000);
+    }
+
+    function addNewMission() {
+        const title = document.getElementById('m-title').value;
+        const reward = document.getElementById('m-reward').value;
+        const link = document.getElementById('m-link').value;
+        if(title && reward && link) {
+            database.ref('missions').push({title, reward, link});
+            alert("Missiya qo'shildi!");
+            document.getElementById('m-title').value = "";
+            document.getElementById('m-reward').value = "";
+            document.getElementById('m-link').value = "";
+        }
+    }
+
     const balanceDisplay = document.getElementById('balance');
 
     function saveToLocal() {
@@ -355,7 +415,6 @@
         localStorage.setItem('h_click', clickPower);
         localStorage.setItem('h_prices', JSON.stringify(prices));
         localStorage.setItem('h_market', JSON.stringify(marketCards));
-        localStorage.setItem('h_missions', JSON.stringify(missions));
     }
 
     document.getElementById('coin').addEventListener('touchstart', function(e) {
@@ -381,6 +440,7 @@
         if (tab !== 'main') document.getElementById(tab + '-panel').style.display = 'block';
         document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
         if(document.getElementById('nav-' + tab)) document.getElementById('nav-' + tab).classList.add('active');
+        if(tab === 'mission') renderMissions();
     }
 
     function buyMarketCard(type, basePrice, profit, cardId) {
